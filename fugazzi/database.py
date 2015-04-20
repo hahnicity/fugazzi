@@ -24,7 +24,7 @@ def commit_review(connection, review_dict):
     author = regex.sub(r"''", review_dict["author"])
     text = regex.sub(r"''", review_dict["text"])
     title = regex.sub(r"''", review_dict["title"])
-    cursor.execute("EXECUTE review_insert('{}', '{}', '{}', {}, '{}', '{}', '{}');".format(
+    cursor.execute(u"EXECUTE review_insert('{}', '{}', '{}', {}, '{}', '{}', '{}');".format(
         author,
         str(review_dict["date"]),
         review_dict["id"],

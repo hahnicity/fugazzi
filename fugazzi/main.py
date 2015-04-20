@@ -13,10 +13,7 @@ def parse_reviews(amazon, db_connection, reviews):
     Fully parse through all the reviews for a product and store them all in the db
     """
     for review in reviews.parse_reviews_on_page():
-        try:
-            commit_review(db_connection, review.to_dict())
-        except:
-            import pdb; pdb.set_trace()
+        commit_review(db_connection, review.to_dict())
     if reviews.next_page_url:
         parse_reviews(amazon, db_connection, amazon.reviews(URL=reviews.next_page_url))
 

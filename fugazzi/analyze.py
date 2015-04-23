@@ -1,7 +1,9 @@
 from argparse import ArgumentParser
 from itertools import groupby, imap
 
+from numpy import array
 import psycopg2
+from sklearn.cluster import KMeans
 
 
 def build_parser():
@@ -9,17 +11,34 @@ def build_parser():
     parser.add_argument("--db-user", default="fugazzi", help="The name of the db user")
     parser.add_argument("--db-password", help="The database password")
     parser.add_argument("--storage-db", default="amazon_ratings", help="The name of the db to connect to in postgres")
+    parser.add_argument("-l" , "--limit", type=int, help="Limit the number of reviews to analyze")
     return parser
 
 
-def get_data(db_name, username, password):
+def normalize_time(data):
+    """
+    Normalize the time data that we get assuming its in form
+
+    [(time1, rating1), (time2, rating2), ...]
+
+    The times should be in the range [0,1] afterwards
+    """
+    minimum = float(min(data, key=lambda x: x[0])[0])
+    maximum = float(max(data, key=lambda x: x[0])[0])
+    if minimum == maximum:
+        return data
+    return map(lambda x: ((int(x[0]) - minimum) / (maximum - minimum), x[1]), data)
+
+
+def get_data(db_name, username, password, limit):
     """
     Get all review data from the db.
     """
     db_connection = psycopg2.connect(dbname=db_name, user=username, password=password)
     cursor = db_connection.cursor()
     # This might prove to be a bad idea when we have a ton of reviews but for now who cares
-    cursor.execute("select * from reviews;")
+    cmd = "select * from reviews;" if not limit else "select * from reviews limit {};".format(limit)
+    cursor.execute(cmd)
     all_data = iter(cursor.fetchall())
     cursor.close()
     db_connection.close()
@@ -37,26 +56,36 @@ def get_date_to_ratings_data(data):
 
     and transforms it to
 
-    [[(item0_1.strftime(%s), item0_3), (item1_1.strftime(%s), ...),...] ...]
+    [(asin, [(item0_1.strftime(%s), item0_3), (item1_1.strftime(%s),...)], (...), ...]
 
     Each sublist corresponds to dates and ratings of reviews for a specific product.
     At the moment we don't care which one, we just care that it's distinct. Products
     can be iterated over and analyzed this way while reducing memory impact from all
     the data sloshing around.
     """
-    grouping = groupby(data, lambda x: x[-1])  # The last item is the asin
+    grouping = groupby(data, lambda x: x[-1])  # The last item in x is the asin
     return imap(
-        lambda asin_group: map(
+        lambda asin_group: (asin_group[0], map(
             lambda entry: (entry[1].strftime("%s"), entry[3]), asin_group[-1]
-        ),
+        )),
     grouping)
 
+
+def perform_kmeans(data):
+    for asin, asin_data in data:
+        if not asin_data:
+            continue
+        asin_data = array(normalize_time(asin_data))
+        kmeans = KMeans(n_clusters=2)
+        kmeans.fit(asin_data)
+        import pdb; pdb.set_trace()
 
 
 def main():
     args = build_parser().parse_args()
-    all_data = get_data(args.storage_db, args.db_user, args.db_password)
+    all_data = get_data(args.storage_db, args.db_user, args.db_password, args.limit)
     transformed_data = get_date_to_ratings_data(all_data)
+    perform_kmeans(transformed_data)
 
 
 if __name__ == "__main__":

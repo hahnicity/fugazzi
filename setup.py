@@ -10,6 +10,7 @@ setup(
     packages=find_packages(),
     requires=[
         "amazon_scraper",
-        "redis",
+        "psycopg2",
+        "scipy",
     ],
 )

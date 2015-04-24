@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 from itertools import groupby, imap
 
 from numpy import array
+from prettytable import PrettyTable
 import psycopg2
 from sklearn.cluster import KMeans
 
@@ -63,6 +64,7 @@ def get_date_to_ratings_data(data):
     can be iterated over and analyzed this way while reducing memory impact from all
     the data sloshing around.
     """
+    data = iter(sorted(data, key=lambda x: x[-1]))
     grouping = groupby(data, lambda x: x[-1])  # The last item in x is the asin
     return imap(
         lambda asin_group: (asin_group[0], map(
@@ -75,10 +77,28 @@ def perform_kmeans(data):
     for asin, asin_data in data:
         if not asin_data:
             continue
-        asin_data = array(normalize_time(asin_data))
-        kmeans = KMeans(n_clusters=2)
-        kmeans.fit(asin_data)
-        import pdb; pdb.set_trace()
+        results = []
+        #asin_data = array(normalize_time(asin_data))
+        for clusters in range(2, 11):
+            if clusters > len(asin_data):
+                break
+            kmeans = KMeans(n_clusters=clusters)
+            kmeans.fit(asin_data)
+            score = kmeans.score(asin_data)
+            try:
+                previous_score = results[-1][1]
+            except IndexError:
+                improvement = 0.0
+            else:
+                improvement = (score - previous_score) / previous_score
+
+            results.append((clusters, score, improvement))
+        pt = PrettyTable(["clusters", "score", "improvement"])
+        for item in results:
+            pt.add_row(item)
+        print "Results for asin {}:".format(asin)
+        print pt
+        raw_input("Would you like to continue? ^C gets you out of here!")
 
 
 def main():
